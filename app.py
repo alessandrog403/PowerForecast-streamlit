@@ -1,6 +1,14 @@
 import streamlit as st
 import requests
 import datetime
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+st.set_page_config(
+    page_title="Prédictions de prix",
+    page_icon="📈",
+    layout="wide",
+)
 
 
 with st.form(key='params_for_api'):
@@ -15,11 +23,32 @@ params = dict(
 
 
 
-url = 'https://power-forecast-344702926535.europe-west1.run.app/predict/from_cache'
+url = 'https://power-forecast-344702926535.europe-west1.run.app/predict/combined'
 response = requests.get(url, params=params)
 
-prediction = response.json()
+result = response.json()
 
-pred = prediction['predictions']
+pred = result['predictions']
 
-st.write(f'prix prédits: €{pred}')
+dates = [p['date'] for p in pred]
+rnn = [p['prix_predit_rnn'] for p in pred]
+xgb = [p['prix_predit_xgb'] for p in pred]
+reel = [p['prix_reel'] for p in pred]
+
+ecart_rnn = [r - re for r, re in zip(rnn, reel)]
+ecart_xgb = [x - re for x, re in zip(xgb, reel)]
+
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                    subplot_titles=('Prix (EUR/MWh)', 'Écart vs prix réel (EUR/MWh)'),
+                    row_heights=[0.6, 0.4])
+
+fig.add_trace(go.Scatter(x=dates, y=reel, mode='lines', name='Prix réel', line=dict(color='green')), row=1, col=1)
+fig.add_trace(go.Scatter(x=dates, y=rnn, mode='lines', name='RNN', line=dict(color='blue')), row=1, col=1)
+fig.add_trace(go.Scatter(x=dates, y=xgb, mode='lines', name='XGBoost', line=dict(color='orange')), row=1, col=1)
+
+fig.add_trace(go.Bar(x=dates, y=ecart_rnn, name='Écart RNN', marker_color='blue', opacity=0.6), row=2, col=1)
+fig.add_trace(go.Bar(x=dates, y=ecart_xgb, name='Écart XGBoost', marker_color='orange', opacity=0.6), row=2, col=1)
+
+fig.update_layout(title='Prédictions de prix vs Prix réel', barmode='group', height=700)
+
+st.plotly_chart(fig, use_container_width=True)

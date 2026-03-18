@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 import datetime
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 st.set_page_config(
     page_title="Prédictions de prix",
@@ -13,15 +12,13 @@ st.set_page_config(
 
 with st.form(key='params_for_api'):
     date_to_predict_price = st.date_input('date a laquelle vous souhaitez prédire un prix', value=datetime.datetime(2024,3,20))
-    lenght_of_prediction = st.number_input('nbre de jours pour lequelles vous voulez des prévisions horaires (0>nbre j > 2)', value=2)
+    lenght_of_prediction = st.number_input('nombre de jours pour lesquelles vous voulez des prévisions horaires', value=2)
 
     if st.form_submit_button('Make prediction'):
 
         params = dict(
             date=date_to_predict_price,
             days=lenght_of_prediction)
-
-
 
         url = 'https://power-forecast-344702926535.europe-west1.run.app/predict/combined'
         response = requests.get(url, params=params)
@@ -35,20 +32,12 @@ with st.form(key='params_for_api'):
         xgb = [p['prix_predit_xgb'] for p in pred]
         reel = [p['prix_reel'] for p in pred]
 
-        ecart_rnn = [r - re for r, re in zip(rnn, reel)]
-        ecart_xgb = [x - re for x, re in zip(xgb, reel)]
+        fig = go.Figure()
 
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                            subplot_titles=('Prix (EUR/MWh)', 'Écart vs prix réel (EUR/MWh)'),
-                            row_heights=[0.6, 0.4])
+        fig.add_trace(go.Scatter(x=dates, y=reel, mode='lines', name='Prix réel', line=dict(color='green', width=3)))
+        fig.add_trace(go.Scatter(x=dates, y=rnn, mode='lines', name='RNN', line=dict(color='blue', width=3, dash='dash')))
+        fig.add_trace(go.Scatter(x=dates, y=xgb, mode='lines', name='XGBoost', line=dict(color='orange', width=3, dash='dash')))
 
-        fig.add_trace(go.Scatter(x=dates, y=reel, mode='lines', name='Prix réel', line=dict(color='green')), row=1, col=1)
-        fig.add_trace(go.Scatter(x=dates, y=rnn, mode='lines', name='RNN', line=dict(color='blue')), row=1, col=1)
-        fig.add_trace(go.Scatter(x=dates, y=xgb, mode='lines', name='XGBoost', line=dict(color='orange')), row=1, col=1)
-
-        fig.add_trace(go.Bar(x=dates, y=ecart_rnn, name='Écart RNN', marker_color='blue', opacity=0.6), row=2, col=1)
-        fig.add_trace(go.Bar(x=dates, y=ecart_xgb, name='Écart XGBoost', marker_color='orange', opacity=0.6), row=2, col=1)
-
-        fig.update_layout(title='Prédictions de prix vs Prix réel', barmode='group', height=700)
+        fig.update_layout(title='Prédictions de prix vs Prix réel', yaxis_title='Prix (EUR/MWh)', height=500)
 
         st.plotly_chart(fig, use_container_width=True)
